@@ -2,10 +2,10 @@ name: Code Formatting
 
 on:
   push:
-    branches-ignore: 
+    branches-ignore:
       - main
   pull_request:
-    types: 
+    types:
       - opened
       - ready_for_review
       - reopened
@@ -17,18 +17,15 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
-        
-      - name: Install python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.9'
+        uses: actions/checkout@v4
 
-      - name: Format the code
-        uses: psf/black@stable
-        with:
-          options: "--check --diff"
-          src: "."
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Lint and format with Ruff
+        run: |
+          uvx ruff check --fix .
+          uvx ruff format .
 
       - name: Check-in updated code
         uses: EndBug/add-and-commit@v9

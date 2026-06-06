@@ -1,9 +1,12 @@
-import os
 import json
 import logging
-from distutils.util import strtobool
-import requests
+import os
+from typing import Any
+
 import msal
+import requests
+
+from .util import strtobool
 
 # Optional logging
 # logging.basicConfig(level=logging.DEBUG)  # Enable DEBUG log for entire script
@@ -13,7 +16,7 @@ LOG = logging.getLogger(__name__)
 
 
 class AzureAD:
-    def __init__(self):
+    def __init__(self) -> None:
         self.AZURE_TENANT_ID = os.environ["AZURE_TENANT_ID"]
         self.AZURE_CLIENT_ID = os.environ["AZURE_CLIENT_ID"]
         self.AZURE_CLIENT_SECRET = os.environ["AZURE_CLIENT_SECRET"]
@@ -32,7 +35,7 @@ class AzureAD:
             os.environ.get("AZURE_USE_TRANSITIVE_GROUP_MEMBERS", "False")
         )
 
-    def get_access_token(self):
+    def get_access_token(self) -> str | None:
         """
         Get the access token for this Azure Service Principal
         :return access_token:
@@ -63,7 +66,9 @@ class AzureAD:
                 result.get("correlation_id")
             )  # You may need this when reporting a bug
 
-    def get_group_members(self, token=None, group_name=None):
+    def get_group_members(
+        self, token: str | None = None, group_name: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get a list of members for a given group
         :param token:
@@ -91,7 +96,7 @@ class AzureAD:
                 token,
                 f"{self.AZURE_API_ENDPOINT}/groups/{group_info['id']}/{members_endpoint}",
             )
-        except IndexError as e:
+        except IndexError:
             members = []
         for member in members:
             if member["@odata.type"] == "#microsoft.graph.group":
@@ -121,7 +126,9 @@ class AzureAD:
                 member_list.append(user)
         return member_list
 
-    def get_group_members_pages(self, token=None, url=None):
+    def get_group_members_pages(
+        self, token: str | None = None, url: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get group members
         :param token:
@@ -130,9 +137,10 @@ class AzureAD:
         :rtype members: dict
         """
         members_data = requests.get(url, headers={"Authorization": f"Bearer {token}"})
-        if members_data.ok != True:
+        if not members_data.ok:
             print(
-                f"[GetMembers]: Error getting members data error code {members_data.status_code}"
+                "[GetMembers]: Error getting members data error code "
+                f"{members_data.status_code}"
             )
             return []
 
@@ -146,7 +154,9 @@ class AzureAD:
             )
         return members
 
-    def get_user_info(self, token=None, user=None):
+    def get_user_info(
+        self, token: str | None = None, user: str | None = None
+    ) -> dict[str, Any]:
         """
         Get user info
         :param token:

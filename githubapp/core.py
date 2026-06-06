@@ -2,13 +2,16 @@
 Flask extension for rapid GitHub app development
 """
 
-import os.path
 import hmac
 import logging
-import distutils
+import os.path
+from collections.abc import Callable
+from typing import Any
 
-from flask import abort, current_app, jsonify, request, g
+from flask import Flask, abort, current_app, g, jsonify, request
 from github3 import GitHub, GitHubEnterprise
+
+from .util import strtobool
 
 LOG = logging.getLogger(__name__)
 
@@ -16,7 +19,7 @@ STATUS_FUNC_CALLED = "HIT"
 STATUS_NO_FUNC_CALLED = "MISS"
 
 
-class GitHubApp(object):
+class GitHubApp:
     """
     The GitHubApp object provides the central interface for interacting GitHub hooks
     and creating GitHub app clients.
@@ -25,16 +28,17 @@ class GitHubApp(object):
     and provides authenticated github3.py clients for interacting with the GitHub API.
 
     Keyword Arguments:
-        app {Flask object} -- App instance - created with Flask(__name__) (default: {None})
+        app {Flask object} -- App instance created with Flask(__name__)
+            (default: {None})
     """
 
-    def __init__(self, app=None):
-        self._hook_mappings = {}
+    def __init__(self, app: Flask | None = None) -> None:
+        self._hook_mappings: dict[str, list[Callable]] = {}
         if app is not None:
             self.init_app(app)
 
     @staticmethod
-    def load_env(app):
+    def load_env(app: Flask) -> None:
         # Validate APP_ID is numeric, but store it as a string: github3.py uses
         # this value as the JWT `iss` claim, and PyJWT >=2.10 rejects non-string
         # issuers ("Issuer (iss) must be a string.").
@@ -43,16 +47,17 @@ class GitHubApp(object):
         if "GHE_HOST" in os.environ:
             app.config["GITHUBAPP_URL"] = "https://{}".format(os.environ["GHE_HOST"])
             app.config["VERIFY_SSL"] = bool(
-                distutils.util.strtobool(os.environ.get("VERIFY_SSL", "false"))
+                strtobool(os.environ.get("VERIFY_SSL", "false"))
             )
         with open(os.environ["PRIVATE_KEY_PATH"], "rb") as key_file:
             app.config["GITHUBAPP_KEY"] = key_file.read()
 
-    def init_app(self, app):
+    def init_app(self, app: Flask) -> None:
         """
         Initializes GitHubApp app by setting configuration variables.
 
-        The GitHubApp instance is given the following configuration variables by calling on Flask's configuration:
+        The GitHubApp instance is given the following configuration variables
+        by calling on Flask's configuration:
 
         `GITHUBAPP_ID`:
 
@@ -61,7 +66,8 @@ class GitHubApp(object):
 
         `GITHUBAPP_KEY`:
 
-            Private key used to sign access token requests as bytes or utf-8 encoded string (required).
+            Private key used to sign access token requests as bytes or utf-8
+            encoded string (required).
             Default: None
 
         `GITHUBAPP_SECRET`:
@@ -84,7 +90,7 @@ class GitHubApp(object):
         for setting in required_settings:
             if not app.config.get(setting):
                 raise RuntimeError(
-                    "Flask-GitHubApp requires the '%s' config var to be set" % setting
+                    f"Flask-GitHubApp requires the '{setting}' config var to be set"
                 )
 
         app.add_url_rule(
@@ -96,33 +102,33 @@ class GitHubApp(object):
         app.add_url_rule("/health_check", endpoint="health_check")
 
         @app.endpoint("health_check")
-        def health_check():
+        def health_check() -> tuple[str, int]:
             return "Web server is running.", 200
 
     @property
-    def id(self):
+    def id(self) -> str:
         return current_app.config["GITHUBAPP_ID"]
 
     @property
-    def key(self):
+    def key(self) -> bytes:
         key = current_app.config["GITHUBAPP_KEY"]
         if hasattr(key, "encode"):
             key = key.encode("utf-8")
         return key
 
     @property
-    def secret(self):
+    def secret(self) -> bytes:
         secret = current_app.config["GITHUBAPP_SECRET"]
         if hasattr(secret, "encode"):
             secret = secret.encode("utf-8")
         return secret
 
     @property
-    def _api_url(self):
+    def _api_url(self) -> str:
         return current_app.config["GITHUBAPP_URL"]
 
     @property
-    def client(self):
+    def client(self) -> GitHub | GitHubEnterprise:
         """Unauthenticated GitHub client"""
         if current_app.config.get("GITHUBAPP_URL"):
             return GitHubEnterprise(
@@ -132,7 +138,7 @@ class GitHubApp(object):
         return GitHub()
 
     @property
-    def payload(self):
+    def payload(self) -> dict[str, Any]:
         """GitHub hook payload"""
         if request and request.json and "installation" in request.json:
             return request.json
@@ -142,7 +148,7 @@ class GitHubApp(object):
         )
 
     @property
-    def installation_client(self):
+    def installation_client(self) -> GitHub | GitHubEnterprise:
         """GitHub client authenticated as GitHub app installation"""
         if not hasattr(g, "githubapp_installation"):
             client = self.client
@@ -153,7 +159,7 @@ class GitHubApp(object):
         return g.githubapp_installation
 
     @property
-    def app_client(self):
+    def app_client(self) -> GitHub | GitHubEnterprise:
         """GitHub client authenticated as GitHub app"""
         if not hasattr(g, "githubapp_app"):
             client = self.client
@@ -162,14 +168,16 @@ class GitHubApp(object):
         return g.githubapp_app
 
     @property
-    def installation_token(self):
+    def installation_token(self) -> str:
         """
 
         :return:
         """
         return self.installation_client.session.auth.token
 
-    def app_installation(self, installation_id=None):
+    def app_installation(
+        self, installation_id: int | None = None
+    ) -> GitHub | GitHubEnterprise:
         """
         Login as installation when triggered on a non-webhook event.
         This is necessary for scheduling tasks
@@ -185,11 +193,12 @@ class GitHubApp(object):
             g.githubapp_installation = client
         return g.githubapp_installation
 
-    def on(self, event_action):
+    def on(self, event_action: str) -> Callable:
         """
         Decorator routes a GitHub hook to the wrapped function.
 
-        Functions decorated as a hook recipient are registered as the function for the given GitHub event.
+        Functions decorated as a hook recipient are registered as the function
+        for the given GitHub event.
 
         @github_app.on('issues.opened')
         def cruel_closer():
@@ -201,24 +210,24 @@ class GitHubApp(object):
             issue.close()
 
         Arguments:
-            event_action {str} -- Name of the event and optional action (separated by a period), e.g. 'issues.opened' or
-                'pull_request'
+            event_action {str} -- Name of the event and optional action
+                (separated by a period), e.g. 'issues.opened' or 'pull_request'
         """
 
-        def decorator(f):
+        def decorator(f: Callable) -> Callable:
             if event_action not in self._hook_mappings:
                 self._hook_mappings[event_action] = [f]
             else:
                 self._hook_mappings[event_action].append(f)
 
-            # make sure the function can still be called normally (e.g. if a user wants to pass in their
-            # own Context for whatever reason).
+            # make sure the function can still be called normally (e.g. if a
+            # user wants to pass in their own Context for whatever reason).
             return f
 
         return decorator
 
-    def _flask_view_func(self):
-        functions_to_call = []
+    def _flask_view_func(self) -> Any:
+        functions_to_call: list[Callable] = []
         calls = {}
 
         event = request.headers["X-GitHub-Event"]
@@ -242,7 +251,7 @@ class GitHubApp(object):
             status = STATUS_NO_FUNC_CALLED
         return jsonify({"status": status, "calls": calls})
 
-    def _verify_webhook(self):
+    def _verify_webhook(self) -> None:
         hub_signature = "X-HUB-SIGNATURE"
         if hub_signature not in request.headers:
             LOG.warning("Github Hook Signature not found.")

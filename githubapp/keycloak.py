@@ -1,16 +1,15 @@
-import asyncio
-import collections
-import os
+import collections.abc
 import logging
-import re
-from keycloak import KeycloakAdmin
+import os
+from typing import Any
 
+from keycloak import KeycloakAdmin
 
 LOG = logging.getLogger(__name__)
 
 
 class Keycloak:
-    def __init__(self):
+    def __init__(self) -> None:
         if not os.environ.get("KEYCLOAK_SERVER_URL", None):
             raise Exception("KEYCLOAK_SERVER_URL not defined")
 
@@ -36,7 +35,9 @@ class Keycloak:
             user_realm_name=os.environ["KEYCLOAK_ADMIN_REALM"],
         )
 
-    def get_group_members(self, group_name: str = None):
+    def get_group_members(
+        self, group_name: str | None = None
+    ) -> list[dict[str, str | None]]:
         """
         Get a list of users that are in a group in Keycloak
 
@@ -48,7 +49,7 @@ class Keycloak:
         """
         member_list = []
 
-        def get_group_id(client: KeycloakAdmin = None):
+        def get_group_id(client: KeycloakAdmin | None = None) -> str:
             """
             Get the UUID of the provided group from Keycloak
 
@@ -69,7 +70,9 @@ class Keycloak:
             else:
                 return group[0]["id"]
 
-        def get_members(client: KeycloakAdmin = None, group_id: str = None):
+        def get_members(
+            client: KeycloakAdmin | None = None, group_id: str | None = None
+        ) -> list[dict[str, Any]]:
             """
             Get the users that are in this group
 
@@ -97,7 +100,9 @@ class Keycloak:
                 members += group_members
             return members
 
-        def get_github_username(client: KeycloakAdmin = None, user_id: str = None):
+        def get_github_username(
+            client: KeycloakAdmin | None = None, user_id: str | None = None
+        ) -> str:
             """
             Gets the GitHub username from the user's Keycloak profile
             This only works if the Keycloak realm has GitHub set up
@@ -118,7 +123,7 @@ class Keycloak:
             return github_username
 
         gid = get_group_id(client=self.client)
-        users: collections.Iterable = get_members(client=self.client, group_id=gid)
+        users: collections.abc.Iterable = get_members(client=self.client, group_id=gid)
         for user in users:
             try:
                 if self.UseGithubIDP:

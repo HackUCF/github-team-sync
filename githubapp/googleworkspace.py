@@ -1,11 +1,8 @@
-import os
-import traceback
-import sys
-import json
 import logging
-from google.oauth2 import service_account
+import os
+
 import googleapiclient.discovery
-from pprint import pprint
+from google.oauth2 import service_account
 
 LOG = logging.getLogger(__name__)
 
@@ -17,7 +14,7 @@ SCOPES = [
 
 
 class GoogleWorkspaceClient:
-    def __init__(self):
+    def __init__(self) -> None:
         # Read settings from the config file and store them as constants
         self.GOOGLE_WORKSPACE_SA_CREDS_FILE = os.environ[
             "GOOGLE_WORKSPACE_SA_CREDS_FILE"
@@ -44,7 +41,7 @@ class GoogleWorkspaceClient:
             "admin", "directory_v1", credentials=delegated_credentials
         )
 
-    def get_group_members(self, group_name):
+    def get_group_members(self, group_name: str) -> list[dict[str, str | None]]:
         """
         Get members of the requested group in GOOGLE_WORKSPACE/Active Directory
         :param group_name: The name of the group
@@ -71,7 +68,7 @@ class GoogleWorkspaceClient:
             request = service.list_next(request, members)
         return member_list
 
-    def get_user_info(self, id):
+    def get_user_info(self, id: str) -> dict[str, str | None]:
         """
         Look up user info from Google Workspace
         :param user:
@@ -106,12 +103,12 @@ class GoogleWorkspaceClient:
                 }
         return {"username": None, "email": None}
 
-    def get_groups_info(self):
+    def get_groups_info(self) -> dict[str, str]:
         """
         Returns dict of groups ids
         """
 
-        groups_dict = dict()
+        groups_dict = {}
         service = self.service.groups()
         request = service.list(customer="my_customer")
         while request is not None:

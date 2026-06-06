@@ -1,18 +1,22 @@
-from onelogin.api.client import OneLoginClient
 import os
+
+from onelogin.api.client import OneLoginClient
 
 
 class OneLogin:
-    def __init__(self):
+    def __init__(self) -> None:
         CLIENT_ID = os.environ["ONELOGIN_CLIENT_ID"]
         CLIENT_SECRET = os.environ["ONELOGIN_CLIENT_SECRET"]
         REGION = os.environ.get("ONELOGIN_REGION", "US").upper()
         self.client = OneLoginClient(CLIENT_ID, CLIENT_SECRET, REGION)
 
-    def get_group_members(self, group_name=None):
+    def get_group_members(
+        self, group_name: str | None = None
+    ) -> list[dict[str, str | None]]:
         """
-        This is technically not named well, since we're getting users assigned to a role, but
-        because of the existing framework, the matching the function name keeps it reusable
+        This is technically not named well, since we're getting users assigned
+        to a role, but because of the existing framework, matching the function
+        name keeps it reusable
         :param group_name:
         :return:
         """

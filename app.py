@@ -1,29 +1,29 @@
 import atexit
-from operator import truediv
-import os
-import time
 import json
-import github3
-from distutils.util import strtobool
-import threading
+import os
 import sys
+import threading
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
+import github3
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from flask import Flask
 
 from githubapp import (
-    GitHubApp,
-    DirectoryClient,
-    CRON_INTERVAL,
-    TEST_MODE,
     ADD_MEMBER,
+    CRON_INTERVAL,
     REMOVE_ORG_MEMBERS_WITHOUT_TEAM,
-    USER_SYNC_ATTRIBUTE,
     SYNCMAP_ONLY,
+    TEST_MODE,
+    USER_SYNC_ATTRIBUTE,
+    DirectoryClient,
+    GitHubApp,
 )
+from githubapp.util import strtobool
 
 app = Flask(__name__)
 github_app = GitHubApp(app)
@@ -35,7 +35,7 @@ atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
 @github_app.on("team.created")
-def sync_new_team():
+def sync_new_team() -> None:
     """
     Sync a new team when it is created
     :return:
@@ -51,7 +51,12 @@ def sync_new_team():
     sync_team(client=client, owner=owner, team_id=team_id, slug=slug)
 
 
-def sync_team(client=None, owner=None, team_id=None, slug=None):
+def sync_team(
+    client: Any = None,
+    owner: str | None = None,
+    team_id: int | None = None,
+    slug: str | None = None,
+) -> None:
     """
     Prepare the team sync
     :param client:
@@ -76,7 +81,7 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
                 print(f"skipping team {team.slug} - not in group prefix")
                 return
             directory_members = directory_group_members(group=directory_group)
-        except Exception as e:
+        except Exception:
             directory_members = []
             traceback.print_exc(file=sys.stderr)
 
@@ -99,14 +104,14 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
             except (AssertionError, ValueError) as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
                     open_issue(client=client, slug=slug, message=e)
-                raise Exception(f"Team {team.slug} sync failed: {e}")
+                raise Exception(f"Team {team.slug} sync failed: {e}") from e
         print(f"Processing Team Successful: {team.slug}")
     except Exception:
         traceback.print_exc(file=sys.stderr)
         raise
 
 
-def directory_group_members(group=None):
+def directory_group_members(group: str | None = None) -> list[dict[str, str | None]]:
     """
     Look up members of a group in your user directory
     :param group: The name of the group to query in your directory server
@@ -118,13 +123,15 @@ def directory_group_members(group=None):
         directory = DirectoryClient()
         members = directory.get_group_members(group_name=group)
         group_members = [member for member in members]
-    except Exception as e:
+    except Exception:
         group_members = []
         traceback.print_exc(file=sys.stderr)
     return group_members
 
 
-def github_team_info(client=None, owner=None, team_id=None):
+def github_team_info(
+    client: Any = None, owner: str | None = None, team_id: int | None = None
+) -> Any:
     """
     Look up team info in GitHub
     :param client:
@@ -137,8 +144,12 @@ def github_team_info(client=None, owner=None, team_id=None):
 
 
 def github_team_members(
-    client=None, owner=None, team_id=None, attribute="username", ignore_users=[]
-):
+    client: Any = None,
+    owner: str | None = None,
+    team_id: int | None = None,
+    attribute: str = "username",
+    ignore_users: list[str] | None = None,
+) -> list[dict[str, str]]:
     """
     Look up members of a given team in GitHub
     :param client:
@@ -151,6 +162,7 @@ def github_team_members(
     :return: team_members
     :rtype: list
     """
+    ignore_users = ignore_users or []
     team_members = []
     team = github_team_info(client=client, owner=owner, team_id=team_id)
     if attribute == "email":
@@ -168,9 +180,14 @@ def github_team_members(
     return [m for m in team_members if m["username"] not in ignore_users]
 
 
-def compare_members(group, team, attribute="username"):
+def compare_members(
+    group: list[dict[str, str | None]],
+    team: list[dict[str, str | None]],
+    attribute: str = "username",
+) -> dict[str, Any]:
     """
-    Compare users in GitHub and the User Directory to see which users need to be added or removed
+    Compare users in GitHub and the User Directory to see which users need to
+    be added or removed
     :param group:
     :param team:
     :param attribute:
@@ -189,7 +206,7 @@ def compare_members(group, team, attribute="username"):
     return sync_state
 
 
-def execute_sync(org, team, slug, state):
+def execute_sync(org: Any, team: Any, slug: str, state: dict[str, Any]) -> None:
     """
     Perform the synchronization
     :param org:
@@ -199,15 +216,19 @@ def execute_sync(org, team, slug, state):
     :return:
     """
     total_changes = len(state["action"]["remove"]) + len(state["action"]["add"])
+    threshold = int(os.environ.get("CHANGE_THRESHOLD", 25))
     if len(state["directory"]) == 0:
-        message = f"{os.environ.get('USER_DIRECTORY', 'LDAP').upper()} group returned empty: {slug}"
+        directory = os.environ.get("USER_DIRECTORY", "LDAP").upper()
+        message = f"{directory} group returned empty: {slug}"
         raise ValueError(message)
-    elif int(total_changes) > int(os.environ.get("CHANGE_THRESHOLD", 25)):
-        message = "Skipping sync for {}.<br>".format(slug)
-        message += "Total number of changes ({}) would exceed the change threshold ({}).".format(
-            str(total_changes), str(os.environ.get("CHANGE_THRESHOLD", 25))
+    elif int(total_changes) > threshold:
+        message = (
+            f"Skipping sync for {slug}.<br>"
+            f"Total number of changes ({total_changes}) would exceed the "
+            f"change threshold ({threshold})."
+            "<br>Please investigate this change and increase your threshold "
+            "if this is accurate."
         )
-        message += "<br>Please investigate this change and increase your threshold if this is accurate."
         raise AssertionError(message)
     else:
         for user in state["action"]["add"]:
@@ -227,7 +248,7 @@ def execute_sync(org, team, slug, state):
             team.revoke_membership(user)
 
 
-def open_issue(client, slug, message):
+def open_issue(client: Any, slug: str, message: Exception | str) -> None:
     """
     Open an issue with the failed sync details
     :param client: Our installation client
@@ -243,12 +264,14 @@ def open_issue(client, slug, message):
         owner=owner,
         repository=repository,
         assignee=assignee,
-        title="Team sync failed for @{}/{}".format(owner, slug),
+        title=f"Team sync failed for @{owner}/{slug}",
         body=str(message),
     )
 
 
-def load_custom_map(file="syncmap.yml"):
+def load_custom_map(
+    file: str = "syncmap.yml",
+) -> tuple[dict, list[str], list[str]]:
     """
     Custom team synchronization
     :param file:
@@ -258,9 +281,9 @@ def load_custom_map(file="syncmap.yml"):
     ignore_users = []
     group_prefix = []
     if os.path.isfile(file):
-        from yaml import load, Loader
+        from yaml import Loader, load
 
-        with open(file, "r") as f:
+        with open(file) as f:
             data = load(f, Loader=Loader)
         if "mapping" in data:
             for d in data["mapping"]:
@@ -276,7 +299,7 @@ def load_custom_map(file="syncmap.yml"):
     return (syncmap, group_prefix, ignore_users)
 
 
-def get_app_installations():
+def get_app_installations() -> Any:
     """
     Get a list of installations for this app
     :return:
@@ -294,7 +317,7 @@ def get_app_installations():
 @scheduler.scheduled_job(
     trigger=CronTrigger.from_crontab(CRON_INTERVAL), id="sync_all_teams"
 )
-def sync_all_teams():
+def sync_all_teams() -> None:
     """
     Lookup teams in a GitHub org and synchronize all teams with your user directory
     :return:
@@ -334,7 +357,7 @@ def sync_all_teams():
     print(f"Syncing all teams successful: {time.strftime('%A, %d. %B %Y %I:%M:%S %p')}")
 
 
-def remove_org_members_without_team(installations):
+def remove_org_members_without_team(installations: Any) -> None:
     for i in installations():
         with app.app_context() as ctx:
             try:
@@ -356,7 +379,7 @@ def remove_org_members_without_team(installations):
                 ctx.pop()
 
 
-def sync_team_helper(team, custom_map, client, org):
+def sync_team_helper(team: Any, custom_map: dict, client: Any, org: Any) -> None:
     print(f"Organization: {org.login}")
     try:
         if SYNCMAP_ONLY and not is_team_in_map(team.slug, custom_map, org):
@@ -374,7 +397,7 @@ def sync_team_helper(team, custom_map, client, org):
         print(f"DEBUG: {e}")
 
 
-def is_team_in_map(slug, custom_map, org):
+def is_team_in_map(slug: str, custom_map: dict, org: Any) -> bool:
     key_with_org = (org.login, slug)
     key_without_org = slug
     if key_with_org in custom_map or key_without_org in custom_map:
@@ -383,7 +406,7 @@ def is_team_in_map(slug, custom_map, org):
         return False
 
 
-def get_directory_from_slug(slug, custom_map, org):
+def get_directory_from_slug(slug: str, custom_map: dict, org: Any) -> str | None:
     if not is_team_in_map(slug, custom_map, org):
         return slug
     elif (org.login, slug) in custom_map:
