@@ -1,0 +1,56 @@
+[project]
+name = "github-team-sync"
+version = "0.2.0"
+description = "Synchronize GitHub teams from an external user directory (HackUCF Keycloak fork)"
+readme = "README.md"
+requires-python = ">=3.9,<3.12"
+# Core runtime shared by every directory backend, plus Keycloak (the only
+# backend HackUCF uses). Other upstreams live in optional extras below.
+dependencies = [
+    "github3.py",
+    "flask",
+    "werkzeug",
+    "pyyaml",
+    "apscheduler",
+    "python-dotenv",
+    "certifi",
+    "setuptools",
+    "cryptography",
+    "importlib-metadata",
+    "urllib3>=2.0.0",
+    "python-keycloak",
+]
+
+[project.optional-dependencies]
+# Non-essential directory backends. Install with e.g. `uv sync --extra ldap`.
+ldap = ["ldap3"]
+aad = ["msal"]
+okta = ["okta"]
+onelogin = ["onelogin"]
+googleworkspace = [
+    "google-api-python-client",
+    "google-auth-oauthlib",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-mock",
+    "isort",
+    "ruff",
+    "pre-commit",
+    "pylint",
+    "seed-isort-config",
+    "green",
+    "tox",
+    "tox-gh-actions",
+]
+
+[tool.uv]
+package = false
+
+# flatdict (pulled in only by the optional `okta` extra) ships an sdist that
+# imports pkg_resources at build time without declaring setuptools. Pin a
+# setuptools that still bundles pkg_resources so the universal lock resolves.
+[tool.uv.extra-build-dependencies]
+flatdict = ["setuptools<81"]

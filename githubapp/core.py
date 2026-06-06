@@ -1,12 +1,13 @@
 """
 Flask extension for rapid GitHub app development
 """
+
 import os.path
 import hmac
 import logging
 import distutils
 
-from flask import abort, current_app, jsonify, request, _app_ctx_stack
+from flask import abort, current_app, jsonify, request, g
 from github3 import GitHub, GitHubEnterprise
 
 LOG = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ class GitHubApp(object):
         )
 
         app.add_url_rule("/health_check", endpoint="health_check")
+
         @app.endpoint("health_check")
         def health_check():
             return "Web server is running.", 200
@@ -139,26 +141,22 @@ class GitHubApp(object):
     @property
     def installation_client(self):
         """GitHub client authenticated as GitHub app installation"""
-        ctx = _app_ctx_stack.top
-        if ctx is not None:
-            if not hasattr(ctx, "githubapp_installation"):
-                client = self.client
-                client.login_as_app_installation(
-                    self.key, self.id, self.payload["installation"]["id"]
-                )
-                ctx.githubapp_installation = client
-            return ctx.githubapp_installation
+        if not hasattr(g, "githubapp_installation"):
+            client = self.client
+            client.login_as_app_installation(
+                self.key, self.id, self.payload["installation"]["id"]
+            )
+            g.githubapp_installation = client
+        return g.githubapp_installation
 
     @property
     def app_client(self):
         """GitHub client authenticated as GitHub app"""
-        ctx = _app_ctx_stack.top
-        if ctx is not None:
-            if not hasattr(ctx, "githubapp_app"):
-                client = self.client
-                client.login_as_app(self.key, self.id)
-                ctx.githubapp_app = client
-            return ctx.githubapp_app
+        if not hasattr(g, "githubapp_app"):
+            client = self.client
+            client.login_as_app(self.key, self.id)
+            g.githubapp_app = client
+        return g.githubapp_app
 
     @property
     def installation_token(self):
@@ -176,15 +174,13 @@ class GitHubApp(object):
         :return:
         """
         """GitHub client authenticated as GitHub app installation"""
-        ctx = _app_ctx_stack.top
         if installation_id is None:
             raise RuntimeError("Installation ID is not specified.")
-        if ctx is not None:
-            if not hasattr(ctx, "githubapp_installation"):
-                client = self.client
-                client.login_as_app_installation(self.key, self.id, installation_id)
-                ctx.githubapp_installation = client
-            return ctx.githubapp_installation
+        if not hasattr(g, "githubapp_installation"):
+            client = self.client
+            client.login_as_app_installation(self.key, self.id, installation_id)
+            g.githubapp_installation = client
+        return g.githubapp_installation
 
     def on(self, event_action):
         """

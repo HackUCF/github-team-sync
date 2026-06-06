@@ -22,7 +22,7 @@ class Keycloak:
 
         if not os.environ.get("KEYCLOAK_REALM"):
             os.environ["KEYCLOAK_REALM"] = "master"
-        
+
         if not os.environ.get("KEYCLOAK_ADMIN_REALM"):
             os.environ["KEYCLOAK_ADMIN_REALM"] = os.environ.get("KEYCLOAK_REALM")
 
@@ -33,7 +33,7 @@ class Keycloak:
             username=os.environ["KEYCLOAK_USERNAME"],
             password=os.environ["KEYCLOAK_PASSWORD"],
             realm_name=os.environ["KEYCLOAK_REALM"],
-            user_realm_name=os.environ["KEYCLOAK_ADMIN_REALM"]
+            user_realm_name=os.environ["KEYCLOAK_ADMIN_REALM"],
         )
 
     def get_group_members(self, group_name: str = None):
@@ -57,7 +57,13 @@ class Keycloak:
             :return: The group's UUID in Keycloak
             """
 
-            group = client.get_groups(query={"search": group_name, "briefRepresentation": "true", "exact": "true"})
+            group = client.get_groups(
+                query={
+                    "search": group_name,
+                    "briefRepresentation": "true",
+                    "exact": "true",
+                }
+            )
             if not group:
                 raise Exception(f"Cannot find group {group_name} in Keycloak")
             else:
@@ -80,15 +86,13 @@ class Keycloak:
             page_size = 100
             members = []
             group_members = client.get_group_members(
-                group_id=group_id,
-                query={"first": page_start, "max": page_size}
+                group_id=group_id, query={"first": page_start, "max": page_size}
             )
             members += group_members
             while len(group_members) == page_size:
                 page_start += page_size
                 group_members = client.get_group_members(
-                    group_id=group_id,
-                    query={"first": page_start, "max": page_size}
+                    group_id=group_id, query={"first": page_start, "max": page_size}
                 )
                 members += group_members
             return members
@@ -118,20 +122,17 @@ class Keycloak:
         for user in users:
             try:
                 if self.UseGithubIDP:
-                    username = get_github_username(client=self.client, user_id=user["id"])
+                    username = get_github_username(
+                        client=self.client, user_id=user["id"]
+                    )
                 else:
                     username = user["username"]
                     if not username:
                         raise Exception("Unable to find username in profile")
                     if "EMU_SHORTCODE" in os.environ:
                         username = username + "_" + os.environ["EMU_SHORTCODE"]
-                member_list.append(
-                    {
-                        "username": username,
-                        "email": user["email"]
-                    }
-                )
+                member_list.append({"username": username, "email": user["email"]})
             except Exception as e:
-                user_info = f'{user["username"]} ({user["email"]})'
+                user_info = f"{user['username']} ({user['email']})"
                 print(f"User {user_info}: {e}")
         return member_list

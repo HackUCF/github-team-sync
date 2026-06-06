@@ -89,7 +89,7 @@ class AzureAD:
             )
             members = self.get_group_members_pages(
                 token,
-                f'{self.AZURE_API_ENDPOINT}/groups/{group_info["id"]}/{members_endpoint}',
+                f"{self.AZURE_API_ENDPOINT}/groups/{group_info['id']}/{members_endpoint}",
             )
         except IndexError as e:
             members = []

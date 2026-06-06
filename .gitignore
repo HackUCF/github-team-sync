@@ -113,3 +113,6 @@ venv.bak/
 
 # Settings files
 **/settings.yml
+
+# Local directory→team mapping (use syncmap.yml.example as template)
+syncmap.yml

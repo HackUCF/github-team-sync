@@ -300,7 +300,7 @@ def sync_all_teams():
     :return:
     """
 
-    print(f'Syncing all teams: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
+    print(f"Syncing all teams: {time.strftime('%A, %d. %B %Y %I:%M:%S %p')}")
 
     installations = get_app_installations()
     custom_map, _, _ = load_custom_map()
@@ -331,7 +331,7 @@ def sync_all_teams():
         future.result()
     if REMOVE_ORG_MEMBERS_WITHOUT_TEAM:
         remove_org_members_without_team(installations)
-    print(f'Syncing all teams successful: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
+    print(f"Syncing all teams successful: {time.strftime('%A, %d. %B %Y %I:%M:%S %p')}")
 
 
 def remove_org_members_without_team(installations):
