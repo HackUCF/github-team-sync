@@ -1,7 +1,7 @@
 import os
-from distutils.util import strtobool
 
 from .core import GitHubApp
+from .util import strtobool
 
 if os.environ.get("USER_DIRECTORY", "LDAP").upper() == "LDAP":
     from .ldap import LDAPClient as DirectoryClient
@@ -17,7 +17,7 @@ elif os.environ.get("USER_DIRECTORY", "LDAP").upper() == "KEYCLOAK":
     from .keycloak import Keycloak as DirectoryClient
 from .version import __version__
 
-__all__ = ["GitHubApp", "DirectoryClient"]
+__all__ = ["GitHubApp", "DirectoryClient", "__version__"]
 
 # Set default logging handler to avoid "No handler found" warnings.
 import logging

@@ -1,18 +1,19 @@
-import os
-import traceback
-import sys
 import json
 import logging
+import os
 import ssl
-from ldap3 import Server, Connection, Tls, ALL
+import sys
+import traceback
+from typing import Any
+
+from ldap3 import Connection, Server, Tls
 from ldap3.utils.conv import escape_filter_chars
-from pprint import pprint
 
 LOG = logging.getLogger(__name__)
 
 
 class LDAPClient:
-    def __init__(self):
+    def __init__(self) -> None:
         # Read settings from the config file and store them as constants
         self.LDAP_SERVER_HOST = os.environ["LDAP_SERVER_HOST"]
         self.LDAP_SERVER_PORT = os.environ["LDAP_SERVER_PORT"]
@@ -52,17 +53,19 @@ class LDAPClient:
                     os.environ.get("LDAP_SSL_VALIDATE", "CERT_REQUIRED")
                 ]
             except KeyError:
+                options = ssl.VerifyMode._member_names_
                 raise Exception(
-                    f"LDAP_SSL_VALIDATE valid options are {ssl.VerifyMode._member_names_}"
-                )
+                    f"LDAP_SSL_VALIDATE valid options are {options}"
+                ) from None
             try:
                 self.LDAP_SSL_VERSION = ssl._SSLMethod[
                     os.environ.get("LDAP_SSL_VERSION", "PROTOCOL_TLS")
                 ]
             except KeyError:
+                options = ssl._SSLMethod._member_names_
                 raise Exception(
-                    f"LDAP_SSL_VERSION valid options are {ssl._SSLMethod._member_names_}"
-                )
+                    f"LDAP_SSL_VERSION valid options are {options}"
+                ) from None
             self.LDAP_SSL_CA_CERTS = os.environ.get("LDAP_SSL_CA_CERTS")
             self.tls = Tls(
                 local_private_key_file=self.LDAP_SSL_PRIVATE_KEY,
@@ -88,7 +91,7 @@ class LDAPClient:
             auto_range=True,
         )
 
-    def get_group_members(self, group_name):
+    def get_group_members(self, group_name: str) -> list[dict[str, str | None]]:
         """
         Get members of the requested group in LDAP/Active Directory
         :param group_name: The name of the group
@@ -150,11 +153,11 @@ class LDAPClient:
                                     )
                                 user_info = {"username": username, "email": email}
                                 member_list.append(user_info)
-                        except Exception as e:
+                        except Exception:
                             traceback.print_exc(file=sys.stderr)
         return member_list
 
-    def get_user_info(self, user=None):
+    def get_user_info(self, user: str | None = None) -> dict[str, Any] | None:
         """
         Look up user info from LDAP
         :param user:
@@ -178,7 +181,7 @@ class LDAPClient:
                 if len(self.conn.entries) > 0:
                     data = json.loads(self.conn.entries[0].entry_to_json())
                     return data
-            except Exception as e:
+            except Exception:
                 traceback.print_exc(file=sys.stderr)
-        except Exception as e:
+        except Exception:
             traceback.print_exc(file=sys.stderr)

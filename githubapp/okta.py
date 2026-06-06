@@ -1,15 +1,16 @@
 import asyncio
-import os
 import logging
+import os
 import re
-from okta.client import Client as OktaClient
+from typing import Any
 
+from okta.client import Client as OktaClient
 
 LOG = logging.getLogger(__name__)
 
 
 class Okta:
-    def __init__(self):
+    def __init__(self) -> None:
         self.USERNAME_ATTRIBUTE = os.environ.get("OKTA_USERNAME_ATTRIBUTE", "login")
         auth_method = os.environ.get("OKTA_AUTH_METHOD", "token")
         config = {"orgUrl": os.environ["OKTA_ORG_URL"]}
@@ -22,7 +23,9 @@ class Okta:
             config["token"] = os.environ["OKTA_ACCESS_TOKEN"]
         self.client = OktaClient(config)
 
-    def get_group_members(self, group_name=None):
+    def get_group_members(
+        self, group_name: str | None = None
+    ) -> list[dict[str, str | None]]:
         """
         Get a list of users that are part of a given group in Okta
         :param group_name: Group name to look up
@@ -32,7 +35,7 @@ class Okta:
         """
         member_list = []
 
-        async def get_group_id(client=None):
+        async def get_group_id(client: OktaClient | None = None) -> str:
             """
             Get the group ID
             :return:
@@ -40,7 +43,9 @@ class Okta:
             group = await client.list_groups(query_params={"q": group_name})
             return group[0][0].id
 
-        async def get_members(client=None, groupId=None):
+        async def get_members(
+            client: OktaClient | None = None, groupId: str | None = None
+        ) -> list[Any]:
             """
             Get the users that belong to this group
             :param groupId:
@@ -49,7 +54,7 @@ class Okta:
             members = await client.list_group_users(groupId=groupId)
             return members[0]
 
-        def get_or_create_eventloop():
+        def get_or_create_eventloop() -> asyncio.AbstractEventLoop:
             """
             Create an async loop if we're in a child thread
             :return:
