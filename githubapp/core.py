@@ -35,7 +35,10 @@ class GitHubApp(object):
 
     @staticmethod
     def load_env(app):
-        app.config["GITHUBAPP_ID"] = int(os.environ["APP_ID"])
+        # Validate APP_ID is numeric, but store it as a string: github3.py uses
+        # this value as the JWT `iss` claim, and PyJWT >=2.10 rejects non-string
+        # issuers ("Issuer (iss) must be a string.").
+        app.config["GITHUBAPP_ID"] = str(int(os.environ["APP_ID"]))
         app.config["GITHUBAPP_SECRET"] = os.environ["WEBHOOK_SECRET"]
         if "GHE_HOST" in os.environ:
             app.config["GITHUBAPP_URL"] = "https://{}".format(os.environ["GHE_HOST"])
