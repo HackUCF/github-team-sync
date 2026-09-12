@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 LABEL org.opencontainers.image.title="github-team-sync" \
       org.opencontainers.image.description="GitHub team sync (HackUCF Keycloak fork)" \
