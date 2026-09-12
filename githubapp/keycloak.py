@@ -1,11 +1,58 @@
 import collections.abc
 import logging
 import os
+import threading
+from datetime import UTC, datetime
 from typing import Any
 
-from keycloak import KeycloakAdmin
+from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 
 LOG = logging.getLogger(__name__)
+
+
+class _SerializedRefreshConnection(KeycloakOpenIDConnection):
+    """
+    KeycloakOpenIDConnection that only lets one thread (re)acquire the token
+    at a time. Teams are synced in parallel, and concurrent password grants
+    for the same service account can be rejected by Keycloak with
+    ``invalid_grant: Invalid user credentials``.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._refresh_lock = threading.Lock()
+        super().__init__(*args, **kwargs)
+
+    def refresh_token(self) -> None:
+        with self._refresh_lock:
+            # Another thread may have refreshed while we waited on the lock
+            if self.expires_at is not None and datetime.now(tz=UTC) < self.expires_at:
+                return
+            super().refresh_token()
+
+
+_shared_client: KeycloakAdmin | None = None
+_shared_client_lock = threading.Lock()
+
+
+def _get_shared_client() -> KeycloakAdmin:
+    """
+    Return the process-wide KeycloakAdmin, creating it on first use.
+
+    One client means one login session whose token is reused and refreshed,
+    instead of a fresh password grant every time a Keycloak instance is built.
+    """
+    global _shared_client
+    with _shared_client_lock:
+        if _shared_client is None:
+            connection = _SerializedRefreshConnection(
+                server_url=os.environ["KEYCLOAK_SERVER_URL"],
+                username=os.environ["KEYCLOAK_USERNAME"],
+                password=os.environ["KEYCLOAK_PASSWORD"],
+                realm_name=os.environ["KEYCLOAK_REALM"],
+                user_realm_name=os.environ["KEYCLOAK_ADMIN_REALM"],
+            )
+            _shared_client = KeycloakAdmin(connection=connection)
+        return _shared_client
 
 
 class Keycloak:
@@ -27,13 +74,7 @@ class Keycloak:
 
         self.UseGithubIDP = os.environ.get("KEYCLOAK_USE_GITHUB_IDP", "true") == "true"
 
-        self.client = KeycloakAdmin(
-            server_url=os.environ["KEYCLOAK_SERVER_URL"],
-            username=os.environ["KEYCLOAK_USERNAME"],
-            password=os.environ["KEYCLOAK_PASSWORD"],
-            realm_name=os.environ["KEYCLOAK_REALM"],
-            user_realm_name=os.environ["KEYCLOAK_ADMIN_REALM"],
-        )
+        self.client = _get_shared_client()
 
     def get_group_members(
         self, group_name: str | None = None
