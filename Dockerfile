@@ -10,6 +10,7 @@ ENV TZ=${TZ} \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=0 \
+    PYTHONUNBUFFERED=1 \
     PATH="/opt/github-team-sync/.venv/bin:$PATH"
 
 WORKDIR /opt/github-team-sync
